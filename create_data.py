@@ -34,11 +34,14 @@ def create_data_tfrecord(data_list_path, save_path):
         data = f.readlines()
     with tf.io.TFRecordWriter(save_path) as writer:
         for d in tqdm(data):
-            path, label = d.replace('\n', '').split('\t')
-            y1, sr1 = librosa.load(path, duration=2.97)
-            ps = librosa.feature.melspectrogram(y=y1, sr=sr1).reshape(-1).tolist()
-            tf_example = data_example(ps, int(label))
-            writer.write(tf_example.SerializeToString())
+            try:
+                path, label = d.replace('\n', '').split('\t')
+                y1, sr1 = librosa.load(path, duration=2.97)
+                ps = librosa.feature.melspectrogram(y=y1, sr=sr1).reshape(-1).tolist()
+                tf_example = data_example(ps, int(label))
+                writer.write(tf_example.SerializeToString())
+            except Exception as e:
+                print(e)
 
 
 # 生成数据列表
@@ -92,7 +95,7 @@ def get_urbansound8k_list(path, urbansound8k_cvs_path):
 
 
 if __name__ == '__main__':
-    # get_urbansound8k_list('dataset', 'dataset/UrbanSound8K/metadata/UrbanSound8K.csv')
-    get_data_list('dataset/audio', 'dataset')
+    get_urbansound8k_list('dataset', 'dataset/UrbanSound8K/metadata/UrbanSound8K.csv')
+    # get_data_list('dataset/audio', 'dataset')
     create_data_tfrecord('dataset/train_list.txt', 'dataset/train.tfrecord')
     create_data_tfrecord('dataset/test_list.txt', 'dataset/test.tfrecord')
