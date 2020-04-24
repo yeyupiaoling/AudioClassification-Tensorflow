@@ -61,7 +61,7 @@ def get_data_list(audio_path, list_path):
                 else:
                     f_train.write('%s\t%d\n' % (sound_path, i))
                 sound_sum += 1
-        print("Person：%d/%d" % (i + 1, len(persons)))
+        print("Audio：%d/%d" % (i + 1, len(persons)))
 
     f_test.close()
     f_train.close()
