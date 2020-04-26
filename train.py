@@ -2,7 +2,7 @@ import tensorflow as tf
 import reader
 import numpy as np
 
-class_dim = 5
+class_dim = 10
 EPOCHS = 500
 
 model = tf.keras.models.Sequential([
