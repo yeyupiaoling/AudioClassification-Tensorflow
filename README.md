@@ -268,7 +268,7 @@ for batch_id, data in enumerate(train_dataset):
 
 
 # 预测
-在训练结束之后，我们得到了一个`cnn.h5`模型，我们使用这个模型预测音频，输入的硬盘不能小于2.97秒，也不能太长，因为之截取前面的2.97秒的音频进行预测。在执行预测之前，需要把音频转换为梅尔频谱数据，并把数据shape转换为(1, 128, 128, 1)，最后输出的结果即为音频对应的标签。
+在训练结束之后，我们得到了一个`cnn.h5`模型，我们使用这个模型预测音频，输入的硬盘不能小于2.97秒，也不能太长，因为之截取前面的2.97秒的音频进行预测。在执行预测之前，需要把音频转换为梅尔频谱数据，并把数据shape转换为(1, 128, 128, 1)，第一个为输入数据的 batch 大小，如果想多个音频一起数据，可以把他们存放在 list 中一起预测。最后输出的结果即为预测概率最大的标签。
 ```python
 import librosa
 import numpy as np
@@ -303,7 +303,7 @@ if __name__ == '__main__':
 
 
 # 其他
-为了方便读取录制数据和制作数据集，这里提供了两个程序，首先是`record_audio.py`，这个用于录制音频，录制的音频帧率为44100，通道为2，16bit。
+为了方便读取录制数据和制作数据集，这里提供了两个程序，首先是`record_audio.py`，这个用于录制音频，录制的音频帧率为44100，通道为1，16bit。
 ```python
 import pyaudio
 import wave
@@ -315,7 +315,7 @@ s = input('请输入你计划录音多少秒：')
 
 CHUNK = 1024
 FORMAT = pyaudio.paInt16
-CHANNELS = 2
+CHANNELS = 1
 RATE = 44100
 RECORD_SECONDS = int(s)
 WAVE_OUTPUT_FILENAME = "save_audio/%s.wav" % str(uuid.uuid1()).replace('-', '')
