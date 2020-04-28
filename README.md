@@ -47,20 +47,50 @@ ps = librosa.feature.melspectrogram(y=y1, sr=sr1)
 ## 创建训练数据
 根据上面的方法，我们创建Tensorflow训练数据，因为分类音频数据小而多，最好的方法就是把这些音频文件生成TFRecord，加快训练速度。创建`create_data.py`用于生成TFRecord文件。
 
-首先需要生成数据列表，用于下一步的读取需要，`audio_path`为音频文件路径，用户需要提前把音频数据集存放在`dataset/audio`目录下，每个文件夹存放一个类别的音频数据，每条音频数据长度在5秒左右，如`dataset/audio/鸟叫声/······`。`audio`是数据列表存放的位置，生成的数据类别的格式为`音频路径\t音频对应的类别标签`。读者也可以根据自己存放数据的方式修改以下函数。
+在创建训练数据之前，我们最好清理一下数据，因为有一些音频包含了静音，这些静音会影响模型的训练，我们需要把这些静音片段都裁剪掉，保证数据集的干净。
+```python
+import os
+import librosa
+import pandas as pd
+import numpy as np
+import tensorflow as tf
+from tqdm import tqdm
+
+def crop_silence(audios_path):
+    print("正在裁剪静音片段...")
+    for root, dirs, files in os.walk(audios_path, topdown=False):
+        for name in files:
+            audio_path = os.path.join(root, name)
+            wav, sr = librosa.load(audio_path)
+
+            intervals = librosa.effects.split(wav, top_db=20)
+            wav_output = []
+            for sliced in intervals:
+                wav_output.extend(wav[sliced[0]:sliced[1]])
+            wav_output = np.array(wav_output)
+            librosa.output.write_wav(audio_path, wav_output, sr)
+
+    print("裁剪完成！")
+
+if __name__ == '__main__':
+    crop_silence('dataset/audio')
+```
+
+
+然后需要生成数据列表，用于下一步的读取需要，`audio_path`为音频文件路径，用户需要提前把音频数据集存放在`dataset/audio`目录下，每个文件夹存放一个类别的音频数据，每条音频数据长度在5秒左右，如`dataset/audio/鸟叫声/······`。`audio`是数据列表存放的位置，生成的数据类别的格式为`音频路径\t音频对应的类别标签`。读者也可以根据自己存放数据的方式修改以下函数。
 ```python
 # 生成数据列表
 def get_data_list(audio_path, list_path):
     sound_sum = 0
-    persons = os.listdir(audio_path)
+    audios = os.listdir(audio_path)
 
     f_train = open(os.path.join(list_path, 'train_list.txt'), 'w')
     f_test = open(os.path.join(list_path, 'test_list.txt'), 'w')
 
-    for i in range(len(persons)):
-        sounds = os.listdir(os.path.join(audio_path, persons[i]))
+    for i in range(len(audios)):
+        sounds = os.listdir(os.path.join(audio_path, audios[i]))
         for sound in sounds:
-            sound_path = os.path.join(audio_path, persons[i], sound)
+            sound_path = os.path.join(audio_path, audios[i], sound)
             t = librosa.get_duration(filename=sound_path)
             # 过滤小于3秒的音频
             if t >= 3:
@@ -69,7 +99,7 @@ def get_data_list(audio_path, list_path):
                 else:
                     f_train.write('%s\t%d\n' % (sound_path, i))
                 sound_sum += 1
-        print("Person：%d/%d" % (i + 1, len(persons)))
+        print("Audio：%d/%d" % (i + 1, len(audios)))
 
     f_test.close()
     f_train.close()
@@ -80,13 +110,6 @@ if __name__ == '__main__':
 
 有了以上的数据列表，就可开始生成TFRecord文件了。最终会生成`train.tfrecord`和`test.tfrecord`。
 ```python
-import os
-import librosa
-import pandas as pd
-import tensorflow as tf
-from tqdm import tqdm
-
-
 # 获取浮点数组
 def _float_feature(value):
     if not isinstance(value, list):
@@ -397,7 +420,7 @@ def crop_wav(path, crop_len):
 
 
 if __name__ == '__main__':
-    crop_len = 3
+    crop_len = 6
     crop_wav('save_audio', crop_len)
 ```
 
