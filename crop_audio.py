@@ -37,5 +37,5 @@ def crop_wav(path, crop_len):
 
 
 if __name__ == '__main__':
-    crop_len = 3
+    crop_len = 6
     crop_wav('save_audio', crop_len)

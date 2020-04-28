@@ -1,6 +1,7 @@
 import os
 import librosa
 import pandas as pd
+import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
@@ -48,15 +49,15 @@ def create_data_tfrecord(data_list_path, save_path):
 # 生成数据列表
 def get_data_list(audio_path, list_path):
     sound_sum = 0
-    persons = os.listdir(audio_path)
+    audios = os.listdir(audio_path)
 
     f_train = open(os.path.join(list_path, 'train_list.txt'), 'w')
     f_test = open(os.path.join(list_path, 'test_list.txt'), 'w')
 
-    for i in range(len(persons)):
-        sounds = os.listdir(os.path.join(audio_path, persons[i]))
+    for i in range(len(audios)):
+        sounds = os.listdir(os.path.join(audio_path, audios[i]))
         for sound in sounds:
-            sound_path = os.path.join(audio_path, persons[i], sound)
+            sound_path = os.path.join(audio_path, audios[i], sound)
             t = librosa.get_duration(filename=sound_path)
             # 过滤小于3秒的音频
             if t >= 3:
@@ -65,10 +66,28 @@ def get_data_list(audio_path, list_path):
                 else:
                     f_train.write('%s\t%d\n' % (sound_path, i))
                 sound_sum += 1
-        print("Audio：%d/%d" % (i + 1, len(persons)))
+        print("Audio：%d/%d" % (i + 1, len(audios)))
 
     f_test.close()
     f_train.close()
+
+
+# 裁剪静音片段
+def crop_silence(audios_path):
+    print("正在裁剪静音片段...")
+    for root, dirs, files in os.walk(audios_path, topdown=False):
+        for name in files:
+            audio_path = os.path.join(root, name)
+            wav, sr = librosa.load(audio_path)
+
+            intervals = librosa.effects.split(wav, top_db=20)
+            wav_output = []
+            for sliced in intervals:
+                wav_output.extend(wav[sliced[0]:sliced[1]])
+            wav_output = np.array(wav_output)
+            librosa.output.write_wav(audio_path, wav_output, sr)
+
+    print("裁剪完成！")
 
 
 # 创建UrbanSound8K数据列表
@@ -96,7 +115,8 @@ def get_urbansound8k_list(path, urbansound8k_cvs_path):
 
 
 if __name__ == '__main__':
-    get_urbansound8k_list('dataset', 'dataset/UrbanSound8K/metadata/UrbanSound8K.csv')
-    # get_data_list('dataset/audio', 'dataset')
+    crop_silence('dataset/audio')
+    # get_urbansound8k_list('dataset', 'dataset/UrbanSound8K/metadata/UrbanSound8K.csv')
+    get_data_list('dataset/audio', 'dataset')
     create_data_tfrecord('dataset/train_list.txt', 'dataset/train.tfrecord')
     create_data_tfrecord('dataset/test_list.txt', 'dataset/test.tfrecord')
