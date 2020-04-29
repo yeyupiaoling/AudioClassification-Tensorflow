@@ -8,7 +8,7 @@ model = tf.keras.models.load_model('models/cnn.h5')
 
 # 读取音频数据
 def load_data(data_path):
-    wav, sr = librosa.load(data_path)
+    wav, sr = librosa.load(data_path, sr=16000)
     intervals = librosa.effects.split(wav, top_db=20)
     wav_output = []
     for sliced in intervals:
