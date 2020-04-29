@@ -311,7 +311,7 @@ def load_data(data_path):
         wav_output.extend(wav[sliced[0]:sliced[1]])
     wav_output = np.array(wav_output)[:65489]
     ps = librosa.feature.melspectrogram(y=wav_output, sr=sr).astype(np.float32)
-    ps = ps[np.newaxis, np.newaxis, ...]
+    ps = ps[np.newaxis, ..., np.newaxis]
     return ps
 
 
@@ -469,7 +469,7 @@ def load_data(data_path):
         wav_output.extend(wav[sliced[0]:sliced[1]])
     wav_output = np.array(wav_output)[:65489]
     ps = librosa.feature.melspectrogram(y=wav_output, sr=sr).astype(np.float32)
-    ps = ps[np.newaxis, np.newaxis, ...]
+    ps = ps[np.newaxis, ..., np.newaxis]
     return ps
 
 # 获取录音数据
