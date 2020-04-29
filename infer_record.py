@@ -12,7 +12,7 @@ CHUNK = 1024
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 16000
-RECORD_SECONDS = 3
+RECORD_SECONDS = 4
 WAVE_OUTPUT_FILENAME = "infer_audio.wav"
 
 # 打开录音
