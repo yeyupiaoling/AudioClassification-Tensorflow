@@ -32,7 +32,7 @@ def load_data(data_path):
     for sliced in intervals:
         wav_output.extend(wav[sliced[0]:sliced[1]])
     wav_output = np.array(wav_output)[:65489]
-    ps = librosa.feature.melspectrogram(y=wav_output, sr=sr).astype(np.float32)
+    ps = librosa.feature.melspectrogram(y=wav_output, sr=sr, hop_length=256).astype(np.float32)
     ps = ps[np.newaxis, ..., np.newaxis]
     return ps
 

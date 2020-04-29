@@ -38,7 +38,7 @@ def create_data_tfrecord(data_list_path, save_path):
             try:
                 path, label = d.replace('\n', '').split('\t')
                 y1, sr1 = librosa.load(path, duration=2.97)
-                ps = librosa.feature.melspectrogram(y=y1, sr=sr1).reshape(-1).tolist()
+                ps = librosa.feature.melspectrogram(y=y1, sr=sr1, hop_length=256).reshape(-1).tolist()
                 if len(ps) != 128 * 128: continue
                 tf_example = data_example(ps, int(label))
                 writer.write(tf_example.SerializeToString())
