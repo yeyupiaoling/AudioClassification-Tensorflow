@@ -291,7 +291,8 @@ for batch_id, data in enumerate(train_dataset):
 
 
 # 预测
-在训练结束之后，我们得到了一个`cnn.h5`模型，我们使用这个模型预测音频，输入的硬盘不能小于2.97秒，也不能太长，因为之截取前面的2.97秒的音频进行预测。在执行预测之前，需要把音频转换为梅尔频谱数据，并把数据shape转换为(1, 128, 128, 1)，第一个为输入数据的 batch 大小，如果想多个音频一起数据，可以把他们存放在 list 中一起预测。最后输出的结果即为预测概率最大的标签。
+在训练结束之后，我们得到了一个预测模型，有了预测模型，执行预测非常方便。我们使用这个模型预测音频，输入的音频会裁剪静音部分，所以非静音部分不能小于 2.97 秒，也不能太长，之后会裁剪非静音前面的 2.97 秒的音频进行预测。在执行预测之前，需要把音频转换为梅尔频谱数据，并把数据shape转换为(1, 128, 128, 1)，第一个为输入数据的 batch 大小，如果想多个音频一起数据，可以把他们存放在 list 中一起预测。最后输出的结果即为预测概率最大的标签。
+
 ```python
 import librosa
 import numpy as np
@@ -303,9 +304,14 @@ model = tf.keras.models.load_model('models/cnn.h5')
 
 # 读取音频数据
 def load_data(data_path):
-    y1, sr1 = librosa.load(data_path, duration=2.97)
-    ps = librosa.feature.melspectrogram(y=y1, sr=sr1)
-    ps = ps[np.newaxis, ..., np.newaxis]
+    wav, sr = librosa.load(data_path)
+    intervals = librosa.effects.split(wav, top_db=20)
+    wav_output = []
+    for sliced in intervals:
+        wav_output.extend(wav[sliced[0]:sliced[1]])
+    wav_output = np.array(wav_output)[:65489]
+    ps = librosa.feature.melspectrogram(y=wav_output, sr=sr).astype(np.float32)
+    ps = ps[np.newaxis, np.newaxis, ...]
     return ps
 
 
@@ -425,7 +431,8 @@ if __name__ == '__main__':
 ```
 
 
-创建`infer_record.py`，这个程序是用来不断进行录音识别，因为识别的时间比较短，所以我们可以大致理解为这个程序在实时录音识别。通过这个应该我们可以做一些比较有趣的事情，比如把麦克风放在小鸟经常来的地方，通过实时录音识别，一旦识别到有鸟叫的声音，如果你的数据集足够强大，有每种鸟叫的声音数据集，这样你还能准确识别是那种鸟叫。如果识别到目标鸟类，就启动程序，例如拍照等等。
+创建`infer_record.py`，这个程序是用来不断进行录音识别，录音时间之所以设置为 6 秒，就是要保证裁剪后的音频长度大于等于 2.97 秒。因为识别的时间比较短，所以我们可以大致理解为这个程序在实时录音识别。通过这个应该我们可以做一些比较有趣的事情，比如把麦克风放在小鸟经常来的地方，通过实时录音识别，一旦识别到有鸟叫的声音，如果你的数据集足够强大，有每种鸟叫的声音数据集，这样你还能准确识别是那种鸟叫。如果识别到目标鸟类，就启动程序，例如拍照等等。
+
 ```python
 import wave
 import librosa
@@ -441,7 +448,7 @@ CHUNK = 1024
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 44100
-RECORD_SECONDS = 3
+RECORD_SECONDS = 6
 WAVE_OUTPUT_FILENAME = "infer_audio.wav"
 
 # 打开录音
@@ -455,12 +462,15 @@ stream = p.open(format=FORMAT,
 
 # 读取音频数据
 def load_data(data_path):
-    y1, sr1 = librosa.load(data_path, duration=2.97)
-    ps = librosa.feature.melspectrogram(y=y1, sr=sr1)
-    ps = ps[..., np.newaxis]
-    ps = np.array([ps]).astype(np.float32)
+    wav, sr = librosa.load(data_path)
+    intervals = librosa.effects.split(wav, top_db=20)
+    wav_output = []
+    for sliced in intervals:
+        wav_output.extend(wav[sliced[0]:sliced[1]])
+    wav_output = np.array(wav_output)[:65489]
+    ps = librosa.feature.melspectrogram(y=wav_output, sr=sr).astype(np.float32)
+    ps = ps[np.newaxis, np.newaxis, ...]
     return ps
-
 
 # 获取录音数据
 def record_audio():
@@ -492,12 +502,15 @@ def infer(audio_data):
 if __name__ == '__main__':
     try:
         while True:
-            # 加载数据
-            data = load_data(record_audio())
+            try:
+                # 加载数据
+                data = load_data(record_audio())
 
-            # 获取预测结果
-            label = infer(data)
-            print('预测的标签为：%d' % label)
+                # 获取预测结果
+                label = infer(data)
+                print('预测的标签为：%d' % label)
+            except:
+                pass
     except Exception as e:
         print(e)
         stream.stop_stream()

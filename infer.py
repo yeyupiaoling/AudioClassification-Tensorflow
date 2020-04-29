@@ -8,9 +8,14 @@ model = tf.keras.models.load_model('models/cnn.h5')
 
 # 读取音频数据
 def load_data(data_path):
-    y1, sr1 = librosa.load(data_path, duration=2.97)
-    ps = librosa.feature.melspectrogram(y=y1, sr=sr1)
-    ps = ps[np.newaxis, ..., np.newaxis]
+    wav, sr = librosa.load(data_path)
+    intervals = librosa.effects.split(wav, top_db=20)
+    wav_output = []
+    for sliced in intervals:
+        wav_output.extend(wav[sliced[0]:sliced[1]])
+    wav_output = np.array(wav_output)[:65489]
+    ps = librosa.feature.melspectrogram(y=wav_output, sr=sr).astype(np.float32)
+    ps = ps[np.newaxis, np.newaxis, ...]
     return ps
 
 
