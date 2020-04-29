@@ -37,7 +37,7 @@ def create_data_tfrecord(data_list_path, save_path):
         for d in tqdm(data):
             try:
                 path, label = d.replace('\n', '').split('\t')
-                y1, sr1 = librosa.load(path, duration=2.97)
+                y1, sr1 = librosa.load(path, sr=16000, duration=2.04)
                 ps = librosa.feature.melspectrogram(y=y1, sr=sr1, hop_length=256).reshape(-1).tolist()
                 if len(ps) != 128 * 128: continue
                 tf_example = data_example(ps, int(label))
@@ -59,8 +59,8 @@ def get_data_list(audio_path, list_path):
         for sound in sounds:
             sound_path = os.path.join(audio_path, audios[i], sound)
             t = librosa.get_duration(filename=sound_path)
-            # 过滤小于3秒的音频
-            if t >= 3:
+            # 过滤小于2.5秒的音频
+            if t >= 2.5:
                 if sound_sum % 100 == 0:
                     f_test.write('%s\t%d\n' % (sound_path, i))
                 else:
