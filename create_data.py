@@ -97,6 +97,8 @@ def crop_silence(audios_path):
     for root, dirs, files in os.walk(audios_path, topdown=False):
         for name in files:
             audio_path = os.path.join(root, name)
+            if '.wav' not in audio_path:
+                continue
             wav, sr = librosa.load(audio_path)
 
             intervals = librosa.effects.split(wav, top_db=20)
