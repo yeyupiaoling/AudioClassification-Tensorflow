@@ -5,7 +5,7 @@ import pyaudio
 import tensorflow as tf
 
 # 获取网络模型
-model = tf.keras.models.load_model('models/cnn.h5')
+model = tf.keras.models.load_model('models/resnet50.h5')
 
 # 录音参数
 CHUNK = 1024

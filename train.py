@@ -6,12 +6,10 @@ class_dim = 10
 EPOCHS = 500
 
 model = tf.keras.models.Sequential([
-    tf.keras.layers.Conv2D(filters=20, kernel_size=5, activation=tf.nn.relu, input_shape=(128, 128, 1)),
-    tf.keras.layers.Conv2D(filters=50, kernel_size=5, activation=tf.nn.relu),
-    tf.keras.layers.MaxPool2D(pool_size=2, strides=2),
-    tf.keras.layers.BatchNormalization(),
+    tf.keras.applications.ResNet50(include_top=False, weights=None, input_shape=(128, 128, 1)),
+    tf.keras.layers.MaxPool2D(pool_size=4),
+    tf.keras.layers.Dropout(rate=0.5),
     tf.keras.layers.Flatten(),
-    tf.keras.layers.Dense(units=128, activation=tf.nn.relu),
     tf.keras.layers.Dense(units=class_dim, activation=tf.nn.softmax)
 ])
 
@@ -67,4 +65,4 @@ for batch_id, data in enumerate(train_dataset):
         print('=================================================')
 
         # 保存模型
-        model.save(filepath='models/cnn.h5')
+        model.save(filepath='models/resnet50.h5')

@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 
 
-model = tf.keras.models.load_model('models/cnn.h5')
+model = tf.keras.models.load_model('models/resnet50.h5')
 
 
 # 读取音频数据
@@ -29,6 +29,6 @@ def infer(audio_path):
 
 if __name__ == '__main__':
     # 要预测的音频文件
-    path = 'dataset/UrbanSound8K/audio/fold8/113203-5-6-0.wav'
+    path = 'dataset/UrbanSound8K/audio/fold6/121285-0-0-3.wav'
     label = infer(path)
     print('音频：%s 的预测结果标签为：%d' % (path, label))
