@@ -12,7 +12,7 @@ CHUNK = 1024
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 16000
-RECORD_SECONDS = 4
+RECORD_SECONDS = 3
 WAVE_OUTPUT_FILENAME = "infer_audio.wav"
 
 # 打开录音
@@ -31,9 +31,9 @@ def load_data(data_path):
     wav_output = []
     for sliced in intervals:
         wav_output.extend(wav[sliced[0]:sliced[1]])
-    if len(wav_output) < 32640:
-        raise Exception("有效音频小于2.04s")
-    wav_output = np.array(wav_output)[:32640]
+    if len(wav_output) < 8000:
+        raise Exception("有效音频小于0.5s")
+    wav_output = np.array(wav_output)
     ps = librosa.feature.melspectrogram(y=wav_output, sr=sr, hop_length=256).astype(np.float32)
     ps = ps[np.newaxis, ..., np.newaxis]
     return ps
