@@ -1,4 +1,3 @@
-
 # 前言
 本章我们来介绍如何使用Tensorflow训练一个区分不同音频的分类模型，例如你有这样一个需求，需要根据不同的鸟叫声识别是什么种类的鸟，这时你就可以使用这个方法来实现你的需求了。话不多说，来干。
 
@@ -61,6 +60,8 @@ def crop_silence(audios_path):
     for root, dirs, files in os.walk(audios_path, topdown=False):
         for name in files:
             audio_path = os.path.join(root, name)
+            if '.wav' not in audio_path:
+                continue
             wav, sr = librosa.load(audio_path)
 
             intervals = librosa.effects.split(wav, top_db=20)
@@ -77,9 +78,8 @@ if __name__ == '__main__':
 ```
 
 
-然后需要生成数据列表，用于下一步的读取需要，`audio_path`为音频文件路径，用户需要提前把音频数据集存放在`dataset/audio`目录下，每个文件夹存放一个类别的音频数据，每条音频数据长度在5秒左右，如`dataset/audio/鸟叫声/······`。`audio`是数据列表存放的位置，生成的数据类别的格式为`音频路径\t音频对应的类别标签`。读者也可以根据自己存放数据的方式修改以下函数。
+然后需要生成数据列表，用于下一步的读取需要，`audio_path`为音频文件路径，用户需要提前把音频数据集存放在`dataset/audio`目录下，每个文件夹存放一个类别的音频数据，如`dataset/audio/鸟叫声/······`。每条音频数据长度大于2.1秒，当然可以可以只其他的音频长度，这个可以根据读取的需要修改，如有需要的参数笔者都使用注释标注了。`audio`是数据列表存放的位置，生成的数据类别的格式为`音频路径\t音频对应的类别标签`。读者也可以根据自己存放数据的方式修改以下函数。
 ```python
-# 生成数据列表
 def get_data_list(audio_path, list_path):
     sound_sum = 0
     audios = os.listdir(audio_path)
@@ -92,8 +92,8 @@ def get_data_list(audio_path, list_path):
         for sound in sounds:
             sound_path = os.path.join(audio_path, audios[i], sound)
             t = librosa.get_duration(filename=sound_path)
-            # 过滤小于3秒的音频
-            if t >= 3:
+            # [可能需要修改参数] 过滤小于2.1秒的音频
+            if t >= 2.1:
                 if sound_sum % 100 == 0:
                     f_test.write('%s\t%d\n' % (sound_path, i))
                 else:
@@ -108,7 +108,7 @@ if __name__ == '__main__':
     get_data_list('dataset/audio', 'dataset')
 ```
 
-有了以上的数据列表，就可开始生成TFRecord文件了。最终会生成`train.tfrecord`和`test.tfrecord`。
+有了以上的数据列表，就可开始生成TFRecord文件了。最终会生成`train.tfrecord`和`test.tfrecord`。如果需要使用不同的音频长度时，需要修改wav_len参数值和len(ps)过滤值，wav_len参数值为音频长度 16000 * 秒数，len(ps)过滤值为梅尔频谱shape相乘。
 ```python
 # 获取浮点数组
 def _float_feature(value):
@@ -139,11 +139,34 @@ def create_data_tfrecord(data_list_path, save_path):
         data = f.readlines()
     with tf.io.TFRecordWriter(save_path) as writer:
         for d in tqdm(data):
-            path, label = d.replace('\n', '').split('\t')
-            y1, sr1 = librosa.load(path, duration=2.97)
-            ps = librosa.feature.melspectrogram(y=y1, sr=sr1).reshape(-1).tolist()
-            tf_example = data_example(ps, int(label))
-            writer.write(tf_example.SerializeToString())
+            try:
+                path, label = d.replace('\n', '').split('\t')
+                wav, sr = librosa.load(path, sr=16000)
+                intervals = librosa.effects.split(wav, top_db=20)
+                wav_output = []
+                # [可能需要修改参数] 音频长度 16000 * 秒数
+                wav_len = 32640
+                for sliced in intervals:
+                    wav_output.extend(wav[sliced[0]:sliced[1]])
+                for i in range(5):
+                    # 裁剪过长的音频，过短的补0
+                    if len(wav_output) > wav_len:
+                        l = len(wav_output) - wav_len
+                        r = random.randint(0, l)
+                        wav_output = wav_output[r:wav_len + r]
+                    else:
+                        wav_output.extend(np.zeros(shape=[wav_len - len(wav_output)], dtype=np.float32))
+                    wav_output = np.array(wav_output)
+                    # 转成梅尔频谱
+                    ps = librosa.feature.melspectrogram(y=wav_output, sr=sr, hop_length=256).reshape(-1).tolist()
+                    # [可能需要修改参数] 梅尔频谱shape ，librosa.feature.melspectrogram(y=wav_output, sr=sr, hop_length=256).shape
+                    if len(ps) != 128 * 128: continue
+                    tf_example = data_example(ps, int(label))
+                    writer.write(tf_example.SerializeToString())
+                    if len(wav_output) <= wav_len:
+                        break
+            except Exception as e:
+                print(e)
 
 
 if __name__ == '__main__':
@@ -181,12 +204,12 @@ if __name__ == '__main__':
     get_urbansound8k_list('dataset', 'dataset/UrbanSound8K/metadata/UrbanSound8K.csv')
 ```
 
-创建`reader.py`用于在训练时读取TFRecord文件数据。
+创建`reader.py`用于在训练时读取TFRecord文件数据。如果读者使用了其他的音频长度，需要修改一下`tf.io.FixedLenFeature`参数的值，为梅尔频谱的shape相乘的值。
 ```python
 import tensorflow as tf
 
-
 def _parse_data_function(example):
+    # [可能需要修改参数】 设置的梅尔频谱的shape相乘的值
     data_feature_description = {
         'data': tf.io.FixedLenFeature([16384], tf.float32),
         'label': tf.io.FixedLenFeature([], tf.int64),
@@ -194,40 +217,38 @@ def _parse_data_function(example):
     return tf.io.parse_single_example(example, data_feature_description)
 
 
-def train_reader_tfrecord(data_path, num_epochs):
+def train_reader_tfrecord(data_path, num_epochs, batch_size):
     raw_dataset = tf.data.TFRecordDataset(data_path)
     train_dataset = raw_dataset.map(_parse_data_function)
     train_dataset = train_dataset.shuffle(buffer_size=1000) \
         .repeat(count=num_epochs) \
-        .batch(batch_size=32) \
+        .batch(batch_size=batch_size) \
         .prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
     return train_dataset
 
 
-def test_reader_tfrecord(data_path):
+def test_reader_tfrecord(data_path, batch_size):
     raw_dataset = tf.data.TFRecordDataset(data_path)
     test_dataset = raw_dataset.map(_parse_data_function)
-    test_dataset = test_dataset.batch(batch_size=32)
+    test_dataset = test_dataset.batch(batch_size=batch_size)
     return test_dataset
 ```
 
 ## 训练
-接着就可以开始训练模型了，创建`train.py`。我们搭建简单的卷积神经网络，通过把音频数据转换成梅尔频谱，数据的shape也相当于灰度图，所以我们可以当作图像的输入创建一个深度神经网络。然后定义优化方法和获取训练和测试数据。
+接着就可以开始训练模型了，创建`train.py`。我们搭建简单的卷积神经网络，通过把音频数据转换成梅尔频谱，数据的shape也相当于灰度图，所以我们可以当作图像的输入创建一个深度神经网络。然后定义优化方法和获取训练和测试数据。`input_shape`设置为`(128, None, 1))`主要是为了适配其他音频长度的输入和预测是任意大小的输入。`class_dim`为分类的总数。
 ```python
 import tensorflow as tf
 import reader
 import numpy as np
 
-class_dim = 5
+class_dim = 10
 EPOCHS = 500
+BATCH_SIZE=32
 
 model = tf.keras.models.Sequential([
-    tf.keras.layers.Conv2D(filters=20, kernel_size=5, activation=tf.nn.relu, input_shape=(128, 128, 1)),
-    tf.keras.layers.Conv2D(filters=50, kernel_size=5, activation=tf.nn.relu),
-    tf.keras.layers.MaxPool2D(pool_size=2, strides=2),
-    tf.keras.layers.BatchNormalization(),
-    tf.keras.layers.Flatten(),
-    tf.keras.layers.Dense(units=128, activation=tf.nn.relu),
+    tf.keras.applications.ResNet50(include_top=False, weights=None, input_shape=(128, None, 1)),
+    tf.keras.layers.GlobalMaxPooling2D(),
+    tf.keras.layers.Dropout(rate=0.5),
     tf.keras.layers.Dense(units=class_dim, activation=tf.nn.softmax)
 ])
 
@@ -237,14 +258,15 @@ model.summary()
 # 定义优化方法
 optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
 
-train_dataset = reader.train_reader_tfrecord('dataset/train.tfrecord', EPOCHS)
-test_dataset = reader.test_reader_tfrecord('dataset/test.tfrecord')
+train_dataset = reader.train_reader_tfrecord('dataset/train.tfrecord', EPOCHS, batch_size=BATCH_SIZE)
+test_dataset = reader.test_reader_tfrecord('dataset/test.tfrecord', batch_size=BATCH_SIZE)
 ```
 
-最后执行训练，每200个batch执行一次测试和保存模型。要注意的是在创建TFRecord文件时，已经把音频数据的梅尔频谱转换为一维list了，所以在数据输入到模型前，需要把数据reshape为之前的shape，操作方式为`reshape((-1, 128, 128, 1))`。
+最后执行训练，每200个batch执行一次测试和保存模型。要注意的是在创建TFRecord文件时，已经把音频数据的梅尔频谱转换为一维list了，所以在数据输入到模型前，需要把数据reshape为之前的shape，操作方式为`reshape((-1, 128, 128, 1))`。要注意的是如果读者使用了其他长度的音频，需要根据梅尔频谱的shape修改。
 ```python
 for batch_id, data in enumerate(train_dataset):
-    sounds = data['data'].numpy().reshape((-1, 128, 128, 1))
+    # [可能需要修改参数】 设置的梅尔频谱的shape
+    sounds = data['data'].numpy().reshape((BATCH_SIZE, 128, 128, 1))
     labels = data['label']
     # 执行训练
     with tf.GradientTape() as tape:
@@ -267,6 +289,7 @@ for batch_id, data in enumerate(train_dataset):
         test_losses = list()
         test_accuracies = list()
         for d in test_dataset:
+            # [可能需要修改参数】 设置的梅尔频谱的shape
             test_sounds = d['data'].numpy().reshape((-1, 128, 128, 1))
             test_labels = d['label']
 
@@ -286,31 +309,30 @@ for batch_id, data in enumerate(train_dataset):
         print('=================================================')
 
         # 保存模型
-        model.save(filepath='models/cnn.h5')
+        model.save(filepath='models/resnet50.h5')
 ```
 
 
 # 预测
-在训练结束之后，我们得到了一个预测模型，有了预测模型，执行预测非常方便。我们使用这个模型预测音频，输入的音频会裁剪静音部分，所以非静音部分不能小于 2.97 秒，也不能太长，之后会裁剪非静音前面的 2.97 秒的音频进行预测。在执行预测之前，需要把音频转换为梅尔频谱数据，并把数据shape转换为(1, 128, 128, 1)，第一个为输入数据的 batch 大小，如果想多个音频一起数据，可以把他们存放在 list 中一起预测。最后输出的结果即为预测概率最大的标签。
+在训练结束之后，我们得到了一个预测模型，有了预测模型，执行预测非常方便。我们使用这个模型预测音频，输入的音频会裁剪静音部分，所以非静音部分不能小于 0.5 秒，避免特征数量太少，当然这也不是一定的，可以任意修改。在执行预测之前，需要把音频裁剪掉静音部分，并且把裁剪后的音频转换为梅尔频谱数据。预测的数据shape第一个为输入数据的 batch 大小，如果想多个音频一起数据，可以把他们存放在 list 中一起预测。最后输出的结果即为预测概率最大的标签。
 
 ```python
 import librosa
 import numpy as np
 import tensorflow as tf
 
-
-model = tf.keras.models.load_model('models/cnn.h5')
-
+model = tf.keras.models.load_model('models/resnet50.h5')
 
 # 读取音频数据
 def load_data(data_path):
-    wav, sr = librosa.load(data_path)
+    wav, sr = librosa.load(data_path, sr=16000)
     intervals = librosa.effects.split(wav, top_db=20)
     wav_output = []
     for sliced in intervals:
         wav_output.extend(wav[sliced[0]:sliced[1]])
-    wav_output = np.array(wav_output)[:65489]
-    ps = librosa.feature.melspectrogram(y=wav_output, sr=sr).astype(np.float32)
+    assert len(wav_output) >= 8000, "有效音频小于0.5s"
+    wav_output = np.array(wav_output)
+    ps = librosa.feature.melspectrogram(y=wav_output, sr=sr, hop_length=256).astype(np.float32)
     ps = ps[np.newaxis, ..., np.newaxis]
     return ps
 
@@ -385,7 +407,7 @@ print('文件保存在：%s' % WAVE_OUTPUT_FILENAME)
 os.system('pause')
 ```
 
-创建`crop_audio.py`，在训练是只是裁剪前面的2.97秒的音频，所以我们要把录制的硬盘安装每3秒裁剪一段，把裁剪后音频存放在音频名称命名的文件夹中。最后把这些文件按照训练数据的要求创建数据列表，和生成TFRecord文件。
+创建`crop_audio.py`，笔者在训练默认训练2.04秒的音频，所以我们要把录制的硬盘安装每3秒裁剪一段，把裁剪后音频存放在音频名称命名的文件夹中。最后把这些文件按照训练数据的要求创建数据列表，和生成TFRecord文件。
 ```python
 import os
 import uuid
@@ -426,12 +448,12 @@ def crop_wav(path, crop_len):
 
 
 if __name__ == '__main__':
-    crop_len = 6
+    crop_len = 3
     crop_wav('save_audio', crop_len)
 ```
 
 
-创建`infer_record.py`，这个程序是用来不断进行录音识别，录音时间之所以设置为 6 秒，就是要保证裁剪后的音频长度大于等于 2.97 秒。因为识别的时间比较短，所以我们可以大致理解为这个程序在实时录音识别。通过这个应该我们可以做一些比较有趣的事情，比如把麦克风放在小鸟经常来的地方，通过实时录音识别，一旦识别到有鸟叫的声音，如果你的数据集足够强大，有每种鸟叫的声音数据集，这样你还能准确识别是那种鸟叫。如果识别到目标鸟类，就启动程序，例如拍照等等。
+创建`infer_record.py`，这个程序是用来不断进行录音识别，录音时间之所以设置为 3 秒，保证裁剪静音部分后有足够的音频长度用于预测，当然也可以修改成其他的长度值。因为识别的时间比较短，所以我们可以大致理解为这个程序在实时录音识别。通过这个应该我们可以做一些比较有趣的事情，比如把麦克风放在小鸟经常来的地方，通过实时录音识别，一旦识别到有鸟叫的声音，如果你的数据集足够强大，有每种鸟叫的声音数据集，这样你还能准确识别是那种鸟叫。如果识别到目标鸟类，就启动程序，例如拍照等等。
 
 ```python
 import wave
@@ -441,14 +463,14 @@ import pyaudio
 import tensorflow as tf
 
 # 获取网络模型
-model = tf.keras.models.load_model('models/cnn.h5')
+model = tf.keras.models.load_model('models/resnet50.h5')
 
 # 录音参数
 CHUNK = 1024
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
-RATE = 44100
-RECORD_SECONDS = 6
+RATE = 16000
+RECORD_SECONDS = 3
 WAVE_OUTPUT_FILENAME = "infer_audio.wav"
 
 # 打开录音
@@ -462,15 +484,18 @@ stream = p.open(format=FORMAT,
 
 # 读取音频数据
 def load_data(data_path):
-    wav, sr = librosa.load(data_path)
+    wav, sr = librosa.load(data_path, sr=16000)
     intervals = librosa.effects.split(wav, top_db=20)
     wav_output = []
     for sliced in intervals:
         wav_output.extend(wav[sliced[0]:sliced[1]])
-    wav_output = np.array(wav_output)[:65489]
-    ps = librosa.feature.melspectrogram(y=wav_output, sr=sr).astype(np.float32)
+    if len(wav_output) < 8000:
+        raise Exception("有效音频小于0.5s")
+    wav_output = np.array(wav_output)
+    ps = librosa.feature.melspectrogram(y=wav_output, sr=sr, hop_length=256).astype(np.float32)
     ps = ps[np.newaxis, ..., np.newaxis]
     return ps
+
 
 # 获取录音数据
 def record_audio():
@@ -502,19 +527,15 @@ def infer(audio_data):
 if __name__ == '__main__':
     try:
         while True:
-            try:
-                # 加载数据
-                data = load_data(record_audio())
+            # 加载数据
+            data = load_data(record_audio())
 
-                # 获取预测结果
-                label = infer(data)
-                print('预测的标签为：%d' % label)
-            except:
-                pass
+            # 获取预测结果
+            label = infer(data)
+            print('预测的标签为：%d' % label)
     except Exception as e:
         print(e)
         stream.stop_stream()
         stream.close()
         p.terminate()
 ```
-
