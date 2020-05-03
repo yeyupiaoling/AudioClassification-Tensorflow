@@ -37,5 +37,6 @@ def crop_wav(path, crop_len):
 
 
 if __name__ == '__main__':
-    crop_len = 4
+    # [可能需要修改参数] 裁剪音频的长度
+    crop_len = 3
     crop_wav('save_audio', crop_len)
