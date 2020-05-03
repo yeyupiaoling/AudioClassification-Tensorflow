@@ -3,7 +3,7 @@ import reader
 import numpy as np
 
 class_dim = 10
-EPOCHS = 500
+EPOCHS = 100
 BATCH_SIZE=32
 
 model = tf.keras.models.Sequential([
