@@ -7,9 +7,11 @@ EPOCHS = 100
 BATCH_SIZE=32
 
 model = tf.keras.models.Sequential([
-    tf.keras.applications.ResNet50(include_top=False, weights=None, input_shape=(128, None, 1)),
-    tf.keras.layers.GlobalMaxPooling2D(),
+    tf.keras.applications.ResNet50V2(include_top=False, weights=None, input_shape=(128, None, 1)),
+    tf.keras.layers.ActivityRegularization(l2=0.5),
+    tf.keras.layers.BatchNormalization(),
     tf.keras.layers.Dropout(rate=0.5),
+    tf.keras.layers.GlobalMaxPooling2D(),
     tf.keras.layers.Dense(units=class_dim, activation=tf.nn.softmax)
 ])
 
@@ -24,7 +26,7 @@ test_dataset = reader.test_reader_tfrecord('dataset/test.tfrecord', batch_size=B
 
 for batch_id, data in enumerate(train_dataset):
     # [可能需要修改参数】 设置的梅尔频谱的shape
-    sounds = data['data'].numpy().reshape((BATCH_SIZE, 128, 128, 1))
+    sounds = data['data'].numpy().reshape((-1, 128, 128, 1))
     labels = data['label']
     # 执行训练
     with tf.GradientTape() as tape:
