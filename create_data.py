@@ -43,7 +43,7 @@ def create_data_tfrecord(data_list_path, save_path):
                 intervals = librosa.effects.split(wav, top_db=20)
                 wav_output = []
                 # [可能需要修改参数] 音频长度 16000 * 秒数
-                wav_len = 32640
+                wav_len = int(16000 * 2.04)
                 for sliced in intervals:
                     wav_output.extend(wav[sliced[0]:sliced[1]])
                 for i in range(5):
@@ -93,26 +93,6 @@ def get_data_list(audio_path, list_path):
     f_train.close()
 
 
-# 裁剪静音片段
-def crop_silence(audios_path):
-    print("正在裁剪静音片段...")
-    for root, dirs, files in os.walk(audios_path, topdown=False):
-        for name in files:
-            audio_path = os.path.join(root, name)
-            if '.wav' not in audio_path:
-                continue
-            wav, sr = librosa.load(audio_path)
-
-            intervals = librosa.effects.split(wav, top_db=20)
-            wav_output = []
-            for sliced in intervals:
-                wav_output.extend(wav[sliced[0]:sliced[1]])
-            wav_output = np.array(wav_output)
-            librosa.output.write_wav(audio_path, wav_output, sr)
-
-    print("裁剪完成！")
-
-
 # 创建UrbanSound8K数据列表
 def get_urbansound8k_list(path, urbansound8k_cvs_path):
     data_list = []
@@ -138,7 +118,6 @@ def get_urbansound8k_list(path, urbansound8k_cvs_path):
 
 
 if __name__ == '__main__':
-    # crop_silence('dataset/audio')
     # get_urbansound8k_list('dataset', 'dataset/UrbanSound8K/metadata/UrbanSound8K.csv')
     # get_data_list('dataset/audio', 'dataset')
     create_data_tfrecord('dataset/train_list.txt', 'dataset/train.tfrecord')

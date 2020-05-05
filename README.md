@@ -46,39 +46,7 @@ ps = librosa.feature.melspectrogram(y=y1, sr=sr1)
 ## 创建训练数据
 根据上面的方法，我们创建Tensorflow训练数据，因为分类音频数据小而多，最好的方法就是把这些音频文件生成TFRecord，加快训练速度。创建`create_data.py`用于生成TFRecord文件。
 
-在创建训练数据之前，我们最好清理一下数据，因为有一些音频包含了静音，这些静音会影响模型的训练，我们需要把这些静音片段都裁剪掉，保证数据集的干净。
-```python
-import os
-import librosa
-import pandas as pd
-import numpy as np
-import tensorflow as tf
-from tqdm import tqdm
-
-def crop_silence(audios_path):
-    print("正在裁剪静音片段...")
-    for root, dirs, files in os.walk(audios_path, topdown=False):
-        for name in files:
-            audio_path = os.path.join(root, name)
-            if '.wav' not in audio_path:
-                continue
-            wav, sr = librosa.load(audio_path)
-
-            intervals = librosa.effects.split(wav, top_db=20)
-            wav_output = []
-            for sliced in intervals:
-                wav_output.extend(wav[sliced[0]:sliced[1]])
-            wav_output = np.array(wav_output)
-            librosa.output.write_wav(audio_path, wav_output, sr)
-
-    print("裁剪完成！")
-
-if __name__ == '__main__':
-    crop_silence('dataset/audio')
-```
-
-
-然后需要生成数据列表，用于下一步的读取需要，`audio_path`为音频文件路径，用户需要提前把音频数据集存放在`dataset/audio`目录下，每个文件夹存放一个类别的音频数据，如`dataset/audio/鸟叫声/······`。每条音频数据长度大于2.1秒，当然可以可以只其他的音频长度，这个可以根据读取的需要修改，如有需要的参数笔者都使用注释标注了。`audio`是数据列表存放的位置，生成的数据类别的格式为`音频路径\t音频对应的类别标签`。读者也可以根据自己存放数据的方式修改以下函数。
+首先需要生成数据列表，用于下一步的读取需要，`audio_path`为音频文件路径，用户需要提前把音频数据集存放在`dataset/audio`目录下，每个文件夹存放一个类别的音频数据，如`dataset/audio/鸟叫声/······`。每条音频数据长度大于2.1秒，当然可以可以只其他的音频长度，这个可以根据读取的需要修改，如有需要的参数笔者都使用注释标注了。`audio`是数据列表存放的位置，生成的数据类别的格式为`音频路径\t音频对应的类别标签`。读者也可以根据自己存放数据的方式修改以下函数。
 ```python
 def get_data_list(audio_path, list_path):
     sound_sum = 0
@@ -108,7 +76,7 @@ if __name__ == '__main__':
     get_data_list('dataset/audio', 'dataset')
 ```
 
-有了以上的数据列表，就可开始生成TFRecord文件了。最终会生成`train.tfrecord`和`test.tfrecord`。如果需要使用不同的音频长度时，需要修改wav_len参数值和len(ps)过滤值，wav_len参数值为音频长度 16000 * 秒数，len(ps)过滤值为梅尔频谱shape相乘。
+有了以上的数据列表，就可开始生成TFRecord文件了。最终会生成`train.tfrecord`和`test.tfrecord`。笔者设置的音频长度为2.04秒，不足长度会补0，如果需要使用不同的音频长度时，需要修改wav_len参数值和len(ps)过滤值，wav_len参数值为音频长度 16000 * 秒数，len(ps)过滤值为梅尔频谱shape相乘。
 ```python
 # 获取浮点数组
 def _float_feature(value):
@@ -145,7 +113,7 @@ def create_data_tfrecord(data_list_path, save_path):
                 intervals = librosa.effects.split(wav, top_db=20)
                 wav_output = []
                 # [可能需要修改参数] 音频长度 16000 * 秒数
-                wav_len = 32640
+                wav_len = int(16000 * 2.04)
                 for sliced in intervals:
                     wav_output.extend(wav[sliced[0]:sliced[1]])
                 for i in range(5):
